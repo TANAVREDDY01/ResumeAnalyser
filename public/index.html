@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AI Resume Analyzer</title>
+  <style>
+    :root {
+      --primary: #4f46e5;
+      --primary-dark: #3730a3;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --text: #1e293b;
+      --muted: #64748b;
+      --border: #e2e8f0;
+      --radius: 12px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── HEADER ── */
+    header {
+      background: linear-gradient(135deg, var(--primary) 0%, #7c3aed 100%);
+      color: white;
+      padding: 1.5rem 2rem;
+      text-align: center;
+    }
+    header h1 { font-size: 2rem; font-weight: 800; letter-spacing: -0.5px; }
+    header p  { opacity: .85; margin-top: .4rem; font-size: 1rem; }
+
+    /* ── LAYOUT ── */
+    main { max-width: 900px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+
+    /* ── UPLOAD CARD ── */
+    .upload-card {
+      background: var(--card);
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 3rem 2rem;
+      text-align: center;
+      transition: border-color .2s, background .2s;
+      cursor: pointer;
+      position: relative;
+    }
+    .upload-card.drag-over { border-color: var(--primary); background: #eef2ff; }
+    .upload-card input[type=file] {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+    }
+    .upload-icon { font-size: 3rem; margin-bottom: .75rem; }
+    .upload-card h2 { font-size: 1.25rem; margin-bottom: .5rem; color: var(--text); }
+    .upload-card p  { color: var(--muted); font-size: .9rem; }
+
+    #file-name {
+      margin-top: 1rem;
+      font-weight: 600;
+      color: var(--primary);
+      font-size: .95rem;
+      min-height: 1.4em;
+    }
+
+    /* ── BUTTON ── */
+    .btn {
+      display: inline-flex; align-items: center; gap: .5rem;
+      padding: .75rem 2rem;
+      border: none; border-radius: 8px;
+      font-size: 1rem; font-weight: 700;
+      cursor: pointer; transition: all .18s;
+    }
+    .btn-primary {
+      background: var(--primary); color: white;
+      box-shadow: 0 4px 14px rgba(79,70,229,.35);
+    }
+    .btn-primary:hover { background: var(--primary-dark); transform: translateY(-1px); }
+    .btn-primary:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+
+    .analyze-wrap { text-align: center; margin-top: 1.5rem; }
+
+    /* ── SPINNER ── */
+    .spinner-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.45); z-index: 100;
+      align-items: center; justify-content: center; flex-direction: column;
+      color: white; gap: 1rem;
+    }
+    .spinner-overlay.active { display: flex; }
+    .spinner {
+      width: 52px; height: 52px;
+      border: 5px solid rgba(255,255,255,.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── RESULTS ── */
+    #results { display: none; margin-top: 2.5rem; }
+    #results.visible { display: block; }
+
+    .section-title {
+      font-size: 1.2rem; font-weight: 700;
+      margin: 2rem 0 1rem;
+      display: flex; align-items: center; gap: .5rem;
+    }
+
+    /* ── PROFILE CARD ── */
+    .profile-card {
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 1.5rem 2rem;
+      border: 1px solid var(--border);
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+    }
+    .profile-item { }
+    .profile-item .label { font-size: .75rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+    .profile-item .value { font-size: 1.05rem; font-weight: 600; margin-top: .2rem; }
+
+    /* ── BADGE ── */
+    .badge {
+      display: inline-block; padding: .3rem .75rem;
+      border-radius: 999px; font-size: .8rem; font-weight: 600;
+    }
+    .badge-purple { background: #ede9fe; color: #5b21b6; }
+    .badge-green  { background: #d1fae5; color: #065f46; }
+    .badge-blue   { background: #dbeafe; color: #1e40af; }
+    .badge-orange { background: #ffedd5; color: #9a3412; }
+
+    /* ── SKILLS TAGS ── */
+    .tags-wrap { display: flex; flex-wrap: wrap; gap: .5rem; }
+    .tag {
+      padding: .3rem .85rem;
+      border-radius: 999px; font-size: .82rem; font-weight: 500;
+      background: #f1f5f9; color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .tag.reco { background: #eef2ff; color: var(--primary); border-color: #c7d2fe; }
+
+    /* ── SCORE ── */
+    .score-bar-wrap { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem 2rem; }
+    .score-number { font-size: 3rem; font-weight: 900; color: var(--primary); line-height: 1; }
+    .score-label  { color: var(--muted); font-size: .9rem; margin-top: .25rem; }
+    .progress-outer { background: var(--border); border-radius: 999px; height: 14px; margin-top: 1rem; overflow: hidden; }
+    .progress-inner {
+      height: 100%; border-radius: 999px;
+      background: linear-gradient(90deg, var(--primary), #7c3aed);
+      transition: width 1s ease;
+    }
+
+    /* ── TIPS LIST ── */
+    .tips-list { list-style: none; }
+    .tips-list li {
+      display: flex; align-items: center; gap: .75rem;
+      padding: .65rem 1rem;
+      border-radius: 8px;
+      margin-bottom: .4rem;
+      font-size: .9rem;
+    }
+    .tips-list li.ok  { background: #f0fdf4; color: #166534; }
+    .tips-list li.bad { background: #fef2f2; color: #991b1b; }
+    .tips-list .icon  { font-size: 1.1rem; flex-shrink: 0; }
+
+    /* ── COURSES ── */
+    .courses-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1rem; }
+    .course-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 1rem 1.2rem;
+      text-decoration: none; color: var(--text);
+      transition: box-shadow .18s, transform .18s;
+      display: flex; flex-direction: column; gap: .4rem;
+    }
+    .course-card:hover { box-shadow: 0 6px 20px rgba(0,0,0,.1); transform: translateY(-2px); }
+    .course-card .c-num { font-size: .75rem; font-weight: 700; color: var(--primary); }
+    .course-card .c-name { font-size: .9rem; font-weight: 600; line-height: 1.35; }
+    .course-card .c-link { font-size: .78rem; color: var(--muted); margin-top: auto; }
+
+    /* ── VIDEO EMBEDS ── */
+    .video-wrap { border-radius: var(--radius); overflow: hidden; }
+    .video-wrap iframe { width: 100%; height: 320px; border: none; }
+
+    /* ── ERROR ── */
+    .error-box {
+      background: #fef2f2; border: 1px solid #fecaca;
+      border-radius: var(--radius); padding: 1rem 1.5rem;
+      color: #991b1b; margin-top: 1rem;
+    }
+
+    @media (max-width: 600px) {
+      header h1 { font-size: 1.5rem; }
+      .score-number { font-size: 2rem; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>🤖 AI Resume Analyzer</h1>
+  <p>Upload your resume and get instant skill analysis, recommendations & score</p>
+</header>
+
+<main>
+  <!-- Upload -->
+  <div class="upload-card" id="drop-zone">
+    <input type="file" id="resume-file" accept=".pdf"/>
+    <div class="upload-icon">📄</div>
+    <h2>Drop your resume here</h2>
+    <p>or click to browse — PDF files only</p>
+    <div id="file-name"></div>
+  </div>
+
+  <div id="error-msg"></div>
+
+  <div class="analyze-wrap">
+    <button class="btn btn-primary" id="analyze-btn" disabled onclick="analyze()">
+      🔍 Analyze Resume
+    </button>
+  </div>
+
+  <!-- Results -->
+  <div id="results">
+
+    <div class="section-title">👤 Basic Info</div>
+    <div class="profile-card" id="profile-card"></div>
+
+    <div class="section-title">🏅 Experience Level &amp; Field</div>
+    <div id="level-field"></div>
+
+    <div class="section-title">💡 Your Skills</div>
+    <div class="tags-wrap" id="skills-tags"></div>
+
+    <div class="section-title">⭐ Recommended Skills</div>
+    <div class="tags-wrap" id="reco-tags"></div>
+
+    <div class="section-title">📝 Resume Score</div>
+    <div class="score-bar-wrap">
+      <div class="score-number" id="score-num">0</div>
+      <div class="score-label">out of 100</div>
+      <div class="progress-outer"><div class="progress-inner" id="progress-bar" style="width:0%"></div></div>
+    </div>
+
+    <div class="section-title">✅ Resume Tips</div>
+    <ul class="tips-list" id="tips-list"></ul>
+
+    <div class="section-title">🎓 Course Recommendations</div>
+    <div class="courses-grid" id="courses-grid"></div>
+
+    <div class="section-title">🎬 Resume Writing Tips (Video)</div>
+    <div class="video-wrap" id="resume-video"></div>
+
+    <div class="section-title">🎬 Interview Tips (Video)</div>
+    <div class="video-wrap" id="interview-video"></div>
+
+  </div>
+</main>
+
+<div class="spinner-overlay" id="spinner">
+  <div class="spinner"></div>
+  <div style="font-size:1.1rem; font-weight:600;">Analyzing your resume…</div>
+</div>
+
+<script>
+const fileInput  = document.getElementById('resume-file');
+const analyzeBtn = document.getElementById('analyze-btn');
+const fileNameEl = document.getElementById('file-name');
+const dropZone   = document.getElementById('drop-zone');
+const errorMsg   = document.getElementById('error-msg');
+
+fileInput.addEventListener('change', () => {
+  const f = fileInput.files[0];
+  if (f) { fileNameEl.textContent = '📎 ' + f.name; analyzeBtn.disabled = false; }
+  else   { fileNameEl.textContent = '';               analyzeBtn.disabled = true; }
+});
+
+dropZone.addEventListener('dragover',  e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('drag-over');
+  const f = e.dataTransfer.files[0];
+  if (f && f.name.endsWith('.pdf')) {
+    const dt = new DataTransfer(); dt.items.add(f); fileInput.files = dt.files;
+    fileNameEl.textContent = '📎 ' + f.name; analyzeBtn.disabled = false;
+  }
+});
+
+function youtubeEmbed(url) {
+  const match = url.match(/(?:youtu\.be\/|v=)([\w\-]+)/);
+  if (!match) return '<p style="color:var(--muted)">Video unavailable</p>';
+  return `<iframe src="https://www.youtube.com/embed/${match[1]}" allowfullscreen></iframe>`;
+}
+
+async function analyze() {
+  errorMsg.innerHTML = '';
+  const file = fileInput.files[0];
+  if (!file) return;
+
+  document.getElementById('spinner').classList.add('active');
+  analyzeBtn.disabled = true;
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    const res = await fetch('/api/analyze', { method: 'POST', body: formData });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || `Server error ${res.status}`);
+    }
+    const d = await res.json();
+    render(d);
+  } catch (e) {
+    errorMsg.innerHTML = `<div class="error-box">❌ ${e.message}</div>`;
+  } finally {
+    document.getElementById('spinner').classList.remove('active');
+    analyzeBtn.disabled = false;
+  }
+}
+
+function render(d) {
+  // Profile
+  document.getElementById('profile-card').innerHTML = [
+    ['Name',    d.name  || '—'],
+    ['Email',   d.email || '—'],
+    ['Phone',   d.phone || '—'],
+    ['Pages',   d.pages],
+  ].map(([l,v]) => `
+    <div class="profile-item">
+      <div class="label">${l}</div>
+      <div class="value">${v}</div>
+    </div>`).join('');
+
+  // Level & Field
+  const levelColor = { Fresher:'badge-blue', Intermediate:'badge-orange', Experienced:'badge-green' };
+  document.getElementById('level-field').innerHTML = `
+    <span class="badge badge-purple" style="margin-right:.5rem">🎯 ${d.predicted_field}</span>
+    <span class="badge ${levelColor[d.level]||'badge-blue'}">👤 ${d.level}</span>`;
+
+  // Skills
+  document.getElementById('skills-tags').innerHTML =
+    (d.skills.length ? d.skills : ['No skills detected'])
+      .map(s => `<span class="tag">${s}</span>`).join('');
+
+  // Reco skills
+  document.getElementById('reco-tags').innerHTML =
+    d.recommended_skills.map(s => `<span class="tag reco">+ ${s}</span>`).join('');
+
+  // Score
+  document.getElementById('score-num').textContent = d.resume_score;
+  setTimeout(() => {
+    document.getElementById('progress-bar').style.width = d.resume_score + '%';
+  }, 100);
+
+  // Tips
+  document.getElementById('tips-list').innerHTML = d.score_tips.map(t => `
+    <li class="${t.present ? 'ok' : 'bad'}">
+      <span class="icon">${t.present ? '✅' : '❌'}</span>
+      <span>${t.present ? 'Great! You have added ' : 'Missing: '}<strong>${t.label}</strong></span>
+      <span style="margin-left:auto; font-weight:700">${t.present ? '+' : ''}${t.present ? t.points : 0} pts</span>
+    </li>`).join('');
+
+  // Courses
+  document.getElementById('courses-grid').innerHTML = d.courses.map((c, i) => `
+    <a class="course-card" href="${c.url}" target="_blank" rel="noopener">
+      <div class="c-num">Course ${i + 1}</div>
+      <div class="c-name">${c.name}</div>
+      <div class="c-link">Open →</div>
+    </a>`).join('');
+
+  // Videos
+  document.getElementById('resume-video').innerHTML   = youtubeEmbed(d.resume_video);
+  document.getElementById('interview-video').innerHTML = youtubeEmbed(d.interview_video);
+
+  // Show
+  const results = document.getElementById('results');
+  results.classList.add('visible');
+  results.scrollIntoView({ behavior: 'smooth' });
+}
+</script>
+</body>
+</html>
